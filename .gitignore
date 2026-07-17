@@ -9,3 +9,9 @@ __pycache__/
 
 # Asset creation
 assets/assetsScript/
+
+# Structure files
+drafts/
+
+# Standalone json files that are topmost in the project structure
+/*.json
