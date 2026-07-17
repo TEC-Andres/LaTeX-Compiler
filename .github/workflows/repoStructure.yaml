@@ -9,15 +9,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify top-level structure
         run: |
-          expected=".github
-          assets
-          src
-          tests
+          tree -d -L 1 --charset utf-8
+          expected=".git
+          .github
           .gitignore
           README.md
-          requirements.txt"
+          assets
+          requirements.txt
+          src
+          tests"
           actual="$(ls -A1 | sort)"
-          diff <(echo "$expected") <(echo "$actual") && echo "Structure is intact." || {
-            echo "Repository structure has changed!"
+          diff <(echo "$expected") <(echo "$actual") || {
+            echo -e "\033[31mRepository structure has changed!\033[0m"
             exit 1
           }
