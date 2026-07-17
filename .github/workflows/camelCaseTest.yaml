@@ -1,0 +1,154 @@
+name: CamelCase Convention Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check-camelcase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Get diff against base branch
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}"
+            git diff "origin/${{ github.base_ref }}...HEAD" > /tmp/diff.txt
+          else
+            git diff "HEAD~1" > /tmp/diff.txt 2>/dev/null || true
+          fi
+
+      - name: Check camelCase convention
+        shell: python
+        run: |
+          from __future__ import annotations
+          import re
+          import sys
+
+          _LOWER_CAMEL_RE = re.compile(r'^_*[a-z][a-zA-Z0-9]*$')
+          _DUNDER_RE = re.compile(r'^__\w+__$')
+
+          def _is_lower_camel(name: str) -> bool:
+              if _DUNDER_RE.match(name):
+                  return True
+              return bool(_LOWER_CAMEL_RE.match(name))
+
+          def _should_skip_var(name: str) -> bool:
+              if name.isupper() and '_' in name:
+                  return True
+              if _DUNDER_RE.match(name):
+                  return True
+              return False
+
+          def check_lines(lines: list[tuple[str, int, str]]) -> bool:
+              errors: list[str] = []
+              for file_path, lineno, content in lines:
+                  stripped = content.strip()
+                  if not stripped or stripped.startswith('#'):
+                      continue
+                  if stripped.startswith('"""') or stripped.startswith("'''"):
+                      continue
+
+                  fn_match = re.match(r'^(?:async\s+)?def\s+(\w+)\s*\(', stripped)
+                  if fn_match:
+                      name = fn_match.group(1)
+                      if not _is_lower_camel(name):
+                          errors.append(f"{file_path}:{lineno}: function '{name}' should use lowerCamelCase")
+                      continue
+
+                  if re.match(r'^(import|from|for|with|except|lambda)\b', stripped):
+                      continue
+
+                  var_match = re.match(
+                      r'''(?x)
+                      ^(self\.|cls\.)?
+                      ([a-zA-Z_]\w*)
+                      \s*=\s*
+                      (?!\s*=)
+                      ''',
+                      stripped,
+                  )
+                  if var_match:
+                      prefix = var_match.group(1)
+                      name = var_match.group(2)
+                      if not prefix and not _should_skip_var(name) and not _is_lower_camel(name):
+                          errors.append(f"{file_path}:{lineno}: variable '{name}' should use lowerCamelCase")
+                      continue
+
+                  ann_match = re.match(
+                      r'''(?x)
+                      ^([a-zA-Z_]\w*)
+                      \s*:\s*
+                      .*?
+                      \s*=\s*
+                      (?!\s*=)
+                      ''',
+                      stripped,
+                  )
+                  if ann_match:
+                      name = ann_match.group(1)
+                      if not name.startswith('self') and not name.startswith('cls') and not _should_skip_var(name) and not _is_lower_camel(name):
+                          errors.append(f"{file_path}:{lineno}: variable '{name}' should use lowerCamelCase")
+
+              if errors:
+                  print("CamelCase convention violations found:")
+                  for err in errors:
+                      print(f"  {err}")
+                  return False
+              return True
+
+          def parse_diff(diff_text: str) -> list[tuple[str, int, str]]:
+              hunks: list[tuple[str, int, str]] = []
+              current_file = ""
+              line_in_file = 0
+              hunk_start = 0
+              for raw in diff_text.splitlines():
+                  if raw.startswith("+++ "):
+                      current_file = raw[4:].strip()
+                      continue
+                  if raw.startswith("--- "):
+                      continue
+                  if raw.startswith("@@"):
+                      parts = raw.split()
+                      if len(parts) >= 3:
+                          new_info = parts[2]
+                          if ',' in new_info:
+                              hunk_start = int(new_info.split(',')[0])
+                          else:
+                              hunk_start = int(new_info)
+                      line_in_file = hunk_start
+                      continue
+                  if not raw.startswith('+'):
+                      if raw.startswith(' '):
+                          line_in_file += 1
+                      continue
+                  content = raw[1:]
+                  hunks.append((current_file, line_in_file, content))
+                  line_in_file += 1
+              return hunks
+
+          with open(r"/tmp/diff.txt", encoding="utf-8") as f:
+              diff_text = f.read()
+
+          if not diff_text.strip():
+              print("No diff to check.")
+              sys.exit(0)
+
+          lines = parse_diff(diff_text)
+          lines = [l for l in lines if l[0].endswith('.py')]
+          if not lines:
+              print("No Python files changed in diff.")
+              sys.exit(0)
+
+          passed = check_lines(lines)
+          sys.exit(0 if passed else 1)
