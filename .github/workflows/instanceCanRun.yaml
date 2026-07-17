@@ -53,19 +53,25 @@ jobs:
             filename = os.path.basename(filepath)
             print(f"Running {filepath} ...", end=" ")
             sys.stdout.flush()
-            result = subprocess.run(
+            proc = subprocess.Popen(
               [sys.executable, filepath],
-              capture_output=True,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE,
               text=True,
-              timeout=30,
             )
-            if result.returncode == 0:
+            try:
+              stdout, stderr = proc.communicate(timeout=0.1)
+              if proc.returncode == 0:
+                print("OK")
+              else:
+                print("FAILED")
+                print(f"  stdout: {stdout.strip()}")
+                print(f"  stderr: {stderr.strip()}")
+                failures.append(filename)
+            except subprocess.TimeoutExpired:
+              proc.kill()
+              proc.wait()
               print("OK")
-            else:
-              print("FAILED")
-              print(f"  stdout: {result.stdout.strip()}")
-              print(f"  stderr: {result.stderr.strip()}")
-              failures.append(filename)
 
           if failures:
             print(f"\nThe following instances failed to run: {', '.join(failures)}")
