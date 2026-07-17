@@ -81,9 +81,6 @@ jobs:
                   if var_match:
                       prefix = var_match.group(1)
                       name = var_match.group(2)
-                      remainder = stripped[var_match.end():]
-                      if re.search(r',\s*\w+\s*=', remainder):
-                          continue
                       if not prefix and not _should_skip_var(name) and not _is_lower_camel(name):
                           errors.append(f"{file_path}:{lineno}: variable '{name}' should use lowerCamelCase")
                       continue
@@ -100,9 +97,6 @@ jobs:
                   )
                   if ann_match:
                       name = ann_match.group(1)
-                      remainder = stripped[ann_match.end():]
-                      if re.search(r',\s*\w+\s*[:=]', remainder):
-                          continue
                       if not name.startswith('self') and not name.startswith('cls') and not _should_skip_var(name) and not _is_lower_camel(name):
                           errors.append(f"{file_path}:{lineno}: variable '{name}' should use lowerCamelCase")
 
