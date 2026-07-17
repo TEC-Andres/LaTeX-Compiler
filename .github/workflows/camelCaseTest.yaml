@@ -44,7 +44,7 @@ jobs:
               return bool(_LOWER_CAMEL_RE.match(name))
 
           def _should_skip_var(name: str) -> bool:
-              if name.isupper() and '_' in name:
+              if name.isupper():
                   return True
               if _DUNDER_RE.match(name):
                   return True
