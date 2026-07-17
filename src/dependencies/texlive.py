@@ -50,7 +50,7 @@ class TexLive:
         try:
             result = subprocess.run(
                 ["tex", "--version"],
-                capture_output=True,
+                captureOutput=True,
                 text=True,
                 timeout=500
             )
@@ -78,13 +78,13 @@ class TexLive:
         """
         isTexLiveUpToDate: Checks if the local TeX Live installation is up to date with the latest online version.
         """
-        local_version = self.getLocalTexVersion()
-        online_version = self.getOnlineTexVersion()
+        localVersion = self.getLocalTexVersion()
+        onlineVersion = self.getOnlineTexVersion()
 
-        if local_version is None or online_version is None:
+        if localVersion is None or onlineVersion is None:
             return False
 
-        return local_version == online_version
+        return localVersion == onlineVersion
     
     def updateTexLive(self) -> None:
         """

