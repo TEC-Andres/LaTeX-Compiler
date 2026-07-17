@@ -148,13 +148,22 @@ class UpdaterService(TexInstaller):
             elif line.startswith("category ") and ' ' in line:
                 cat = line.split(' ', 1)[1]
                 currentPkg['category'] = cat
+            elif line.startswith("relocated ") and ' ' in line:
+                try:
+                    currentPkg['relocated'] = int(line.split(' ', 1)[1])
+                except ValueError:
+                    pass
 
         result = []
         for pkg in packages:
             name = pkg.get('name')
             size = pkg.get('size', 0)
             if name and size > 0:
-                result.append({'name': name, 'size': size})
+                result.append({
+                    'name': name,
+                    'size': size,
+                    'relocated': pkg.get('relocated', 0)
+                })
         return result
 
     def _parsePackages(self, tlpdbPath: str) -> list[dict]:
@@ -273,35 +282,45 @@ class UpdaterService(TexInstaller):
                      session: requests.Session) -> str:
         url = pkg['url']
         destPath = os.path.join(destDir, f"{pkg['name']}.tar.xz")
-        try:
-            alreadyCached = os.path.exists(destPath)
-            if alreadyCached:
-                progress.downloaded = progress.totalSize
-                progress.percent = 100
-                totalProgress.update(progress.totalSize)
-            else:
-                response = session.get(url, stream=True, timeout=60)
-                response.raise_for_status()
-                with open(destPath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=65536):
-                        if chunk:
-                            f.write(chunk)
-                            progress.update(len(chunk))
-                            totalProgress.update(len(chunk))
+        maxRetries = 3
+        lastError = None
+        for attempt in range(1, maxRetries + 1):
+            try:
+                alreadyCached = os.path.exists(destPath) and attempt == 1
+                if alreadyCached:
+                    progress.downloaded = progress.totalSize
+                    progress.percent = 100
+                    totalProgress.update(progress.totalSize)
+                else:
+                    response = session.get(url, stream=True, timeout=60)
+                    response.raise_for_status()
+                    with open(destPath, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=65536):
+                            if chunk:
+                                f.write(chunk)
+                                progress.update(len(chunk))
+                                totalProgress.update(len(chunk))
 
-            progress.finished = True
-            progress.error = None
-            return destPath
-        except Exception as e:
-            progress.error = str(e)
-            raise
+                progress.finished = True
+                progress.error = None
+                return destPath
+            except Exception as e:
+                lastError = e
+                progress.error = f"Attempt {attempt}/{maxRetries} failed: {e}"
+                if attempt < maxRetries:
+                    time.sleep(2 ** attempt)
+        progress.error = str(lastError)
+        raise lastError
 
     def _extractOne(self, pkg: dict, destDir: str, installDir: str) -> None:
         destPath = os.path.join(destDir, f"{pkg['name']}.tar.xz")
         donePath = os.path.join(destDir, f"{pkg['name']}.done")
         if not os.path.exists(donePath):
+            extractDir = installDir
+            if pkg.get('relocated', 0) == 1:
+                extractDir = os.path.join(installDir, "texmf-dist")
             with tarfile.open(destPath, 'r:xz') as tar:
-                tar.extractall(path=installDir)
+                tar.extractall(path=extractDir)
             with open(donePath, 'w') as f:
                 f.write("")
 

@@ -50,7 +50,7 @@ class TexLive:
         try:
             result = subprocess.run(
                 ["tex", "--version"],
-                captureOutput=True,
+                capture_output=True,
                 text=True,
                 timeout=500
             )
@@ -166,6 +166,9 @@ class TexLive:
             binDir = os.path.join(texliveDir, "bin")
         if binDir not in os.environ.get("PATH", ""):
             os.environ["PATH"] = binDir + os.pathsep + os.environ.get("PATH", "")
+
+        cacheDir = os.path.join(texliveDir, "texmf-var", "fonts", "cache")
+        os.makedirs(cacheDir, exist_ok=True)
 
         steps = [("mktexlsr", []), ("fmtutil-sys", ["--all"]), ("updmap-sys", [])]
         fallback = [("fmtutil-user", ["--all"]), ("updmap-user", [])]
