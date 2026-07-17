@@ -1,0 +1,23 @@
+name: Repo Structure Check
+
+on: [push, pull_request]
+
+jobs:
+  check-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify top-level structure
+        run: |
+          expected=".github
+          assets
+          src
+          tests
+          .gitignore
+          README.md
+          requirements.txt"
+          actual="$(ls -A1 | sort)"
+          diff <(echo "$expected") <(echo "$actual") && echo "Structure is intact." || {
+            echo "Repository structure has changed!"
+            exit 1
+          }

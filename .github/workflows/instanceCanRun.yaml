@@ -1,0 +1,74 @@
+name: Instance Can Run
+
+on:
+  pull_request:
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
+  push:
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
+
+
+jobs:
+  test-instances:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Find and run standalone instances
+        shell: python
+        run: |
+          from __future__ import annotations
+          import glob
+          import os
+          import subprocess
+          import sys
+
+          src_dir = "src"
+          standalone_files = sorted(
+            f for f in glob.glob(os.path.join(src_dir, "*.py"))
+            if not f.endswith("__init__.py")
+          )
+
+          if not standalone_files:
+            print("No standalone files found in src/")
+            sys.exit(0)
+
+          failures: list[str] = []
+          for filepath in standalone_files:
+            filename = os.path.basename(filepath)
+            print(f"Running {filepath} ...", end=" ")
+            sys.stdout.flush()
+            result = subprocess.run(
+              [sys.executable, filepath],
+              capture_output=True,
+              text=True,
+              timeout=30,
+            )
+            if result.returncode == 0:
+              print("OK")
+            else:
+              print("FAILED")
+              print(f"  stdout: {result.stdout.strip()}")
+              print(f"  stderr: {result.stderr.strip()}")
+              failures.append(filename)
+
+          if failures:
+            print(f"\nThe following instances failed to run: {', '.join(failures)}")
+            sys.exit(1)
+          else:
+            print("\nAll instances ran successfully.")
