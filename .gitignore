@@ -9,3 +9,6 @@ __pycache__/
 
 # Asset creation
 assets/assetsScript/
+
+# Structure files
+drafts/
