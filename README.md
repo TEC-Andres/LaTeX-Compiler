@@ -1,6 +1,6 @@
 <h1 align="center">
-    <img src="assets/svg/latexCompiler.svg"  align="top">
+    <img src="assets/svg/latexCompiler.svg" width="80%" align="top">
     <br>
-    <img src="assets/svg/logoTex.svg" width="80%" align="top">
+    <img src="assets/svg/logoTex.svg" width="50%" align="top">
     <br>
 </h1>
