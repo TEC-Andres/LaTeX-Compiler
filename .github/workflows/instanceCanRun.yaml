@@ -2,9 +2,16 @@ name: Instance Can Run
 
 on:
   pull_request:
-    branches: [main]
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
   push:
-    branches: [main]
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
+
 
 jobs:
   test-instances:
