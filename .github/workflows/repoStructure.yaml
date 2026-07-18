@@ -11,13 +11,15 @@ jobs:
         run: |
           tree -d -L 1 --charset utf-8
           expected=".git
+          .githooks
           .github
           .gitignore
           README.md
           assets
           requirements.txt
           src
-          tests"
+          tests
+          gitSetup.py"
           actual="$(ls -A1 | sort)"
           diff <(echo "$expected") <(echo "$actual") || {
             echo -e "\033[31mRepository structure has changed!\033[0m"
