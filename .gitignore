@@ -27,3 +27,8 @@ drafts/
 
 # PDFs 
 *.pdf
+
+# AGENTS
+AGENTS.md
+CLAUDE.md
+GEMINI.md
