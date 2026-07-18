@@ -1,6 +1,6 @@
 name: Repo Structure Check
 
-on: [push, pull_request]
+on: [push]
 
 jobs:
   check-structure:
