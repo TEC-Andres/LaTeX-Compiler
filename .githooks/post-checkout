@@ -1,0 +1,45 @@
+#!/bin/bash
+# .githooks/post-checkout
+
+if [ "$GIT_HOOK_POST_CHECKOUT_RUNNING" = "1" ]; then
+    exit 0
+fi
+export GIT_HOOK_POST_CHECKOUT_RUNNING=1
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+IS_BRANCH_CHECKOUT=$3
+
+if [ "$IS_BRANCH_CHECKOUT" -ne 1 ]; then
+    exit 0
+fi
+
+# TrueColor (24-bit RGB) Escape Codes for #c50f1f
+RED_HEX="\033[38;2;197;15;31m"
+RESET="\033[0m"
+
+allowedPrefixes=(
+    "feature/" "bugfix/" "enhancement/" "hotfix/" 
+    "docs/" "structure/" "assets/" "tests/" 
+    "experiment/" "release/"
+)
+revertRegex="^revert-[0-9]{1,5}-[0-9]{1,5}-"
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$GIT_BRANCH" = "HEAD" ] || [ "$GIT_BRANCH" = "main" ]; then
+    exit 0
+fi
+
+PREFIX_REGEXP=$(IFS="|"; echo "^(${allowedPrefixes[*]})")
+
+if [[ ! "$GIT_BRANCH" =~ $PREFIX_REGEXP ]] && [[ ! "$GIT_BRANCH" =~ $revertRegex ]]; then
+    # Using echo -e to enable interpretation of backslash escapes (\033)
+    echo -e "${RED_HEX}ERROR: Invalid branch name '$GIT_BRANCH'${RESET}"
+    echo "Branch names must start with one of the following prefixes:"
+    printf " - %s\n" "main" "${allowedPrefixes[@]}" "revert-X-Y-"
+    echo -e "${RED_HEX} Action aborted. Reverting branch creation...${RESET}"
+    
+    git checkout -q @{-1} 2>/dev/null
+    git branch -D "$GIT_BRANCH" > /dev/null 2>&1
+    exit 1
+fi
