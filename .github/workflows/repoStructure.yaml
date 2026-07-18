@@ -7,21 +7,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Verify top-level structure
+        shell: bash
         run: |
-          tree -d -L 1 --charset utf-8
-          expected=".git
-          .githooks
-          .github
-          .gitignore
-          README.md
-          assets
-          requirements.txt
-          src
-          tests
-          gitSetup.py"
-          actual="$(ls -A1 | sort)"
-          diff <(echo "$expected") <(echo "$actual") || {
-            echo -e "\033[31mRepository structure has changed!\033[0m"
-            exit 1
+          expected=(
+            ".git"
+            ".github"
+            ".githooks"
+            ".gitignore"
+            "README.md"
+            "assets"
+            "requirements.txt"
+            "src"
+            "tests"
+            "gitSetup.py"
+          )
+          mapfile -t actual < <(ls -A1)
+          mapfile -t all_items < <(printf "%s\n" "${expected[@]}" "${actual[@]}" | sort -u)
+
+          count=${#all_items[@]}
+          failed=false
+          echo "."
+
+          contains() {
+            local item="$1"
+            shift
+            for e in "$@"; do [[ "$e" == "$item" ]] && return 0; done
+            return 1
           }
+
+          for ((i=0; i<count; i++)); do
+            item="${all_items[i]}"
+            if (( i == count - 1 )); then
+              branch="└── "
+            else
+              branch="├── "
+            fi
+
+            contains "$item" "${expected[@]}" && is_expected=true || is_expected=false
+            contains "$item" "${actual[@]}" && is_actual=true || is_actual=false
+
+            if $is_expected && $is_actual; then
+              echo "${branch}${item}"
+            elif $is_actual; then
+              echo -e "${branch}\033[33m${item}\033[0m"
+              failed=true
+            else
+              echo -e "${branch}\033[31m${item}\033[0m"
+              failed=true
+            fi
+          done
+
+          if $failed; then
+            echo -e "\n\033[31mRepository structure has changed!\033[0m"
+            exit 1
+          fi
