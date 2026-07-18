@@ -2,9 +2,15 @@ name: Variable Convention Check (camelCase)
 
 on:
   pull_request:
-    branches: [main]
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
   push:
-    branches: [main]
+      branches: [main]
+      paths:
+      - 'src/**'
+      - 'tests/**'
 
 jobs:
   check-camelcase:
