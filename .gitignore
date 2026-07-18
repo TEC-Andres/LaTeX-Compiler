@@ -15,3 +15,15 @@ drafts/
 
 # Standalone json files that are topmost in the project structure
 /*.json
+
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.fls
+
+# PDFs 
+*.pdf
