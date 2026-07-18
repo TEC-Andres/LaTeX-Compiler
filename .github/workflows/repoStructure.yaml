@@ -18,6 +18,8 @@ jobs:
             ".gitignore"
             "README.md"
             "assets"
+            "LICENSE-LPPL"
+            "LICENSE"
             "requirements.txt"
             "src"
             "tests"
