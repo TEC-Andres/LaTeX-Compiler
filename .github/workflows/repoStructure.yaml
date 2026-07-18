@@ -23,17 +23,11 @@ jobs:
           )
           mapfile -t actual < <(ls -A1)
           mapfile -t all_items < <(printf "%s\n" "${expected[@]}" "${actual[@]}" | sort -u)
-          
+
           count=${#all_items[@]}
           failed=false
           echo "."
-          for ((i=0; i<count; i++)); do
-            item="${all_items[i]}"
-            if (( i == count - 1 )); then
-              branch="└── "
-            else
-              branch="├── "
-            fi
+
           contains() {
             local item="$1"
             shift
