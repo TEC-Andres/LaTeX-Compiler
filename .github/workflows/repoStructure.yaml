@@ -7,7 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Verify top-level structure
+        shell: bash
         run: |
           expected=(
             ".git"
