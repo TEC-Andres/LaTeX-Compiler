@@ -25,6 +25,9 @@ drafts/
 *.toc
 *.fls
 
+# texmake build cache
+__texcache__/
+
 # PDFs 
 *.pdf
 
@@ -32,3 +35,6 @@ drafts/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+
+# (py2 ignore these files for now, draft files)
+*.py2
