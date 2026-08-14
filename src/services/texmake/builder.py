@@ -10,11 +10,12 @@ from .interpreter import Target, TexMakeProject
 _MAX_PASSES = 3
 _DEFAULT_OUTPUT_DIR = "__release__"
 _CACHE_DIR_NAME = "__texcache__"
-_VERSION_RE = re.compile(r"(\d+)\.(\d+)")
+_VERSION_BANNER_RE = re.compile(r"Version (\d+)\.(\d+)")
+_RERUN_PATTERNS = ("Rerun to get cross-references right", "Label(s) may have changed")
 
 
-def _parseEngineVersion(output: str) -> tuple[int, ...]:
-    match = _VERSION_RE.search(output)
+def _parseBannerVersion(output: str) -> tuple[int, ...]:
+    match = _VERSION_BANNER_RE.search(output)
     if not match:
         return ()
     return (int(match.group(1)), int(match.group(2)))
@@ -41,25 +42,18 @@ class Builder:
         engineExe = shutil.which(self.project.engine)
         if not engineExe:
             raise TexMakeCompileError(f"engine '{self.project.engine}' not found in PATH")
-        if self.project.minVersion:
-            try:
-                versionProc = subprocess.run(
-                    [engineExe, "--version"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                versionProc = None
-            if versionProc:
-                actual = _parseEngineVersion(versionProc.stdout)
-                if actual and actual < self.project.minVersion:
-                    required = ".".join(str(part) for part in self.project.minVersion)
-                    raise TexMakeCompileError(
-                        f"engine '{self.project.engine}' version {'.'.join(str(p) for p in actual)} "
-                        f"is older than required {required}"
-                    )
         return engineExe
+
+    def _checkEngineVersion(self, output: str) -> None:
+        if not self.project.minVersion:
+            return
+        actual = _parseBannerVersion(output)
+        if actual and actual < self.project.minVersion:
+            required = ".".join(str(part) for part in self.project.minVersion)
+            raise TexMakeCompileError(
+                f"engine '{self.project.engine}' version {'.'.join(str(p) for p in actual)} "
+                f"is older than required {required}"
+            )
 
     def _buildTarget(self, target: Target) -> str:
         engineExe = self._resolveEngine()
@@ -73,24 +67,26 @@ class Builder:
         stem = os.path.splitext(os.path.basename(mainName))[0]
         cacheDir = os.path.join(sourceDir, _CACHE_DIR_NAME)
         os.makedirs(cacheDir, exist_ok=True)
-        auxPath = os.path.join(cacheDir, f"{stem}.aux")
         logPath = os.path.join(cacheDir, f"{stem}.log")
         pdfPath = os.path.join(cacheDir, f"{stem}.pdf")
-        previousAux = None
-        for _ in range(_MAX_PASSES):
+        outputDirArg = f"-output-directory={cacheDir.replace(os.sep, '/')}"
+        for passNum in range(_MAX_PASSES):
             proc = subprocess.run(
                 [engineExe, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error",
-                 f"-output-directory={cacheDir.replace(os.sep, '/')}", mainName],
+                 outputDirArg, mainName],
                 cwd=sourceDir,
                 capture_output=True,
                 text=True,
             )
             if proc.returncode != 0:
                 raise TexMakeCompileError(self._extractError(logPath), logPath)
-            auxContent = self._readIfExists(auxPath)
-            if auxContent == previousAux:
+            if passNum == 0:
+                self._checkEngineVersion(proc.stdout)
+            if passNum + 1 >= _MAX_PASSES:
                 break
-            previousAux = auxContent
+            logContent = self._readIfExists(logPath) or ""
+            if not any(pattern in logContent for pattern in _RERUN_PATTERNS):
+                break
         if not os.path.isfile(pdfPath):
             raise TexMakeCompileError(f"engine succeeded but produced no pdf at '{pdfPath}'", logPath)
         outputDir = target.outputDir or os.path.join(self.project.sourceDir, _DEFAULT_OUTPUT_DIR)
