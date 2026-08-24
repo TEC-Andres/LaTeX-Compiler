@@ -12,6 +12,7 @@ jobs:
         shell: bash
         run: |
           expected=(
+            ".devcontainer"
             ".git"
             ".github"
             ".githooks"
