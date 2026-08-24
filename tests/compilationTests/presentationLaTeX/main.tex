@@ -1,0 +1,147 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{amssymb}
+\usetikzlibrary{shapes.geometric, positioning, calc}
+
+\definecolor{orangeMain}{HTML}{E87722}
+\definecolor{orangeDark}{HTML}{D46A1A}
+\definecolor{orangeLight}{HTML}{F5A623}
+\definecolor{grayBg}{HTML}{F0F0F0}
+\definecolor{darkText}{HTML}{333333}
+
+\setbeamercolor{normal text}{fg=darkText}
+\setbeamercolor{frametitle}{fg=white, bg=orangeMain}
+\setbeamercolor{title}{fg=white}
+\setbeamercolor{subtitle}{fg=white}
+\setbeamercolor{author}{fg=darkText}
+\setbeamercolor{institute}{fg=darkText}
+\setbeamercolor{date}{fg=darkText}
+\setbeamercolor{section in toc}{fg=darkText}
+\setbeamercolor{subsection in toc}{fg=darkText}
+\setbeamercolor{item}{fg=orangeMain}
+\setbeamercolor{item projected}{fg=white, bg=orangeMain}
+\setbeamercolor{block title}{fg=white, bg=orangeMain}
+\setbeamercolor{block body}{bg=grayBg}
+
+\setbeamertemplate{navigation symbols}{}
+
+\setbeamertemplate{footline}{
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[orangeMain] ([yshift=0.6cm]current page.south west) rectangle (current page.south east);
+    \node[anchor=west, text=white, font=\small] at ([xshift=0.5cm, yshift=0.3cm]current page.south west) {Smash Panda Burgers};
+    \node[anchor=east, text=white, font=\small] at ([xshift=-0.5cm, yshift=0.3cm]current page.south east) {\insertframenumber};
+  \end{tikzpicture}
+}
+
+\newcommand{\titleSlideBackground}{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[orangeMain] (current page.north west) rectangle (current page.south east);
+    \foreach \s/\x/\y/\r/\o in {
+      1.2/3/17/25/0.12,
+      0.8/28/16/10/0.10,
+      1.5/5/10/40/0.08,
+      0.6/25/8/-15/0.10,
+      1.0/10/5/30/0.12,
+      0.9/30/3/20/0.10,
+      1.3/15/15/-10/0.09,
+      0.7/22/12/35/0.11,
+      1.1/8/2/-20/0.10,
+      0.5/18/18/15/0.08,
+      1.4/2/7/45/0.09,
+      0.8/33/10/5/0.11,
+      1.0/12/13/-25/0.10,
+      0.6/27/5/50/0.08,
+      1.2/7/16/12/0.12
+    }{
+      \node[opacity=\o, text=orangeDark, font=\s cm, rotate=\r] at (\x, \y) {$\diamondsuit$};
+    }
+    \node[anchor=center, text=white, font=\fontsize{28}{34}\selectfont\bfseries] at ([yshift=2cm]current page.center) {SMASH PANDA BURGERS};
+    \node[anchor=center, text=white, font=\large] at ([yshift=0.5cm]current page.center) {DESDE 2024};
+    \node[anchor=center, fill=white, rounded corners=5pt, text=darkText, font=\large, inner sep=10pt, minimum width=8cm] at ([yshift=-1.5cm]current page.center) {\insertsubtitle};
+    \node[anchor=center, text=white, font=\normalsize] at ([yshift=-3cm]current page.center) {\insertinstitute};
+    \node[anchor=center, text=white, font=\small] at ([yshift=-5.5cm]current page.center) {\insertauthor};
+    \node[anchor=center, text=white, font=\small] at ([yshift=-7.5cm]current page.center) {\insertdate};
+    \node[anchor=east, text=white, font=\footnotesize] at ([xshift=-0.5cm, yshift=0.3cm]current page.south east) {1};
+  \end{tikzpicture}%
+}
+
+\newcommand{\tocSlideBackground}{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[orangeMain] (current page.north west) rectangle ([xshift=8cm]current page.south west);
+    \foreach \y/\o in {15.5/0.12, 13.7/0.10, 11.9/0.09, 10.1/0.11, 8.3/0.10, 6.5/0.08, 4.7/0.12, 2.9/0.10}{
+      \node[opacity=\o, text=white, font=\small] at ([xshift=4cm, yshift=\y cm]current page.north west) {$\diamondsuit$};
+    }
+  \end{tikzpicture}%
+}
+
+\newcommand{\sectionSlideBg}[1]{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[orangeMain] (current page.north west) rectangle (current page.south east);
+    \foreach \s/\x/\y/\r/\o in {
+      1.0/3/17/25/0.12, 0.8/28/15/10/0.10, 1.2/5/10/40/0.08,
+      0.6/25/8/-15/0.10, 0.9/10/5/30/0.12, 1.1/30/3/20/0.10,
+      0.7/15/15/-10/0.09, 1.3/22/12/35/0.11, 0.5/8/2/-20/0.10,
+      0.8/18/18/15/0.08, 1.0/2/7/45/0.09, 0.6/33/10/5/0.11,
+      0.9/12/13/-25/0.10, 0.7/27/5/50/0.08, 1.1/7/16/12/0.12
+    }{
+      \node[opacity=\o, text=white, font=\s cm, rotate=\r] at (\x, \y) {$\diamondsuit$};
+    }
+    \node[anchor=center, text=white, font=\Huge\bfseries] at (current page.center) {#1};
+  \end{tikzpicture}%
+}
+
+\newcommand{\orangeHeader}[1]{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[orangeMain] (current page.north west) rectangle ([yshift=-1.8cm]current page.north east);
+    \node[anchor=west, text=white, font=\Large\bfseries] at ([xshift=0.8cm, yshift=-0.9cm]current page.north west) {#1};
+    \node[regular polygon, regular polygon sides=6, draw=orangeMain, line width=2pt, minimum size=3cm, opacity=0.15, rotate=15] at ([xshift=-2cm, yshift=-3cm]current page.north east) {};
+    \node[text=orangeMain, font=\fontsize{40}{40}\selectfont, opacity=0.15, rotate=30] at ([xshift=-5cm, yshift=-5cm]current page.north east) {$\times$};
+    \node[star, star points=5, star point ratio=0.5, draw=orangeMain, line width=2pt, minimum size=3cm, opacity=0.15, rotate=10] at ([xshift=-2.5cm, yshift=-7.5cm]current page.north east) {};
+  \end{tikzpicture}%
+}
+
+\title{PDC + PI + OI + PREG}
+\subtitle{Actividad Clase M2}
+\author{
+  Mauricio de Medina Castro [A01287180] \and
+  Andrés Rodríguez Cantú [A01287002] \and
+  Santiago Encalada García [A01199547] \and
+  Jorge Rodrigo Núñez Estrada [A01287185] \and
+  Patricio Solís Rodríguez [A01199624]
+}
+\institute{Smash Panda Burgers}
+\date{Agosto 2024}
+
+\begin{document}
+
+\begin{frame}
+  \titleSlideBackground
+\end{frame}
+
+\begin{frame}{Tabla de Contenidos}
+  \tocSlideBackground
+  \vspace{1cm}
+  \begin{columns}[T]
+    \begin{column}{0.45\textwidth}
+      \begin{enumerate}
+        \item[\textcolor{orangeMain}{\Large 01}] \textbf{Problemas de decisión gerencial}
+        \vspace{0.3cm}
+        \item[\textcolor{orangeMain}{\Large 02}] \textbf{Problemas de investigación}
+        \vspace{0.3cm}
+        \item[\textcolor{orangeMain}{\Large 03}] \textbf{Objetivos de investigación}
+      \end{enumerate}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\input{sections/01_pdg.tex}
+\input{sections/02_pi.tex}
+\input{sections/03_oi.tex}
+
+\end{document}
