@@ -1,0 +1,15 @@
+# Sample texmake project used by the compilation tests
+# texmake_minimum_required(xelatex VERSION 3.14159)
+project(presentation)
+
+set(RELEASE_OUTPUT_DIR "${TEXMAKE_SOURCE_DIR}/release")
+
+add_executable(presentation main.tex)
+
+set_target_properties(presentation PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${RELEASE_OUTPUT_DIR}"
+#     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${RELEASE_OUTPUT_DIR}"
+#     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${RELEASE_OUTPUT_DIR}"
+#     RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${RELEASE_OUTPUT_DIR}"
+#     RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${RELEASE_OUTPUT_DIR}"
+)
