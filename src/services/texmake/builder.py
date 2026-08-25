@@ -6,8 +6,11 @@ import re
 import shutil
 import subprocess
 
+from .auxparser import detect_total_pages, parse_aux, parse_nav
+from .diffengine import DiffEngine, PageDiff
 from .errors import TexMakeCompileError
 from .interpreter import Target, TexMakeProject
+from .manifest import BuildManifest
 
 _MAX_PASSES = 3
 _DEFAULT_OUTPUT_DIR = "__release__"
@@ -24,13 +27,28 @@ def _parseBannerVersion(output: str) -> tuple[int, ...]:
     return (int(match.group(1)), int(match.group(2)))
 
 
+class BuildResult:
+    """Result of a build operation with page-level change information."""
+
+    __slots__ = ("pdf_paths", "page_diff", "sources_changed", "skipped")
+
+    def __init__(self) -> None:
+        self.pdf_paths: list[str] = []
+        self.page_diff: PageDiff | None = None
+        self.sources_changed: list[str] = []
+        self.skipped: bool = False
+
+
 class Builder:
     """Compiles the executable targets of a resolved TexMakeProject."""
 
     def __init__(self, project: TexMakeProject):
         self.project = project
 
-    def build(self, targetName: str | None = None) -> list[str]:
+    def build(self, targetName: str | None = None, incremental: bool = False) -> list[str]:
+        if incremental:
+            result = self.build_incremental(targetName)
+            return result.pdf_paths
         targets = [target for target in self.project.targets.values() if target.kind == "executable"]
         if targetName:
             targets = [target for target in targets if target.name == targetName]
@@ -38,8 +56,80 @@ class Builder:
                 raise TexMakeCompileError(f"unknown executable target '{targetName}'")
         pdfPaths: list[str] = []
         for target in targets:
-            pdfPaths.append(self._buildTarget(target))
+            pdfPaths.append(self._buildTarget(target, snapshot=True))
         return pdfPaths
+
+    def build_incremental(self, targetName: str | None = None) -> BuildResult:
+        result = BuildResult()
+        targets = [target for target in self.project.targets.values() if target.kind == "executable"]
+        if targetName:
+            targets = [target for target in targets if target.name == targetName]
+            if not targets:
+                raise TexMakeCompileError(f"unknown executable target '{targetName}'")
+
+        manifest = BuildManifest(self.project.sourceDir)
+
+        for target in targets:
+            if not target.mainFile:
+                raise TexMakeCompileError(f"target '{target.name}' has no main file")
+            mainPath = target.mainFile if os.path.isabs(target.mainFile) else os.path.join(
+                self.project.sourceDir, target.mainFile
+            )
+            if not os.path.isfile(mainPath):
+                raise TexMakeCompileError(f"main file '{mainPath}' not found")
+
+            sources = target.allSources(self.project)
+            if not manifest.any_source_changed(sources) and manifest.snapshot_exists(
+                os.path.splitext(os.path.basename(target.mainFile))[0]
+            ):
+                result.skipped = True
+                stem = os.path.splitext(os.path.basename(target.mainFile))[0]
+                outputDir = target.outputDir or os.path.join(self.project.sourceDir, _DEFAULT_OUTPUT_DIR)
+                pdfPath = os.path.join(outputDir, f"{stem}.pdf")
+                if os.path.isfile(pdfPath):
+                    result.pdf_paths.append(pdfPath)
+                continue
+
+            stem = os.path.splitext(os.path.basename(target.mainFile))[0]
+            old_aux = manifest.read_snapshot(stem, ".aux")
+            old_nav = manifest.read_snapshot(stem, ".nav")
+
+            pdfPath = self._buildTarget(target, snapshot=True)
+
+            new_aux = manifest.read_current(stem, ".aux")
+            new_nav = manifest.read_current(stem, ".nav")
+
+            if old_aux is not None and new_aux is not None:
+                diffEngine = DiffEngine()
+                pageDiff = diffEngine.diff_intermediates(old_nav, new_nav, old_aux, new_aux)
+
+                sourceContents = {}
+                for src in sources:
+                    try:
+                        with open(src, "r", encoding="utf-8", errors="replace") as f:
+                            sourceContents[src] = f.read()
+                    except OSError:
+                        pass
+
+                if pageDiff.dirty_pages and sourceContents:
+                    mainContent = sourceContents.get(mainPath, "")
+                    if mainContent:
+                        expanded = diffEngine.analyze_propagation(
+                            mainContent, pageDiff.dirty_pages, pageDiff.total_pages_new
+                        )
+                        pageDiff.propagated = len(expanded) > len(pageDiff.dirty_pages)
+                        pageDiff.dirty_pages = expanded
+
+                result.page_diff = pageDiff
+                result.sources_changed = list(diffEngine.diff_sources({}, {}))
+
+            manifest.update_source_hashes(sources)
+            manifest.set_page_count(detect_total_pages(new_aux or "", new_nav))
+            manifest.save()
+            manifest.snapshot_intermediates(stem)
+            result.pdf_paths.append(pdfPath)
+
+        return result
 
     def _resolveEngine(self) -> str:
         engineExe = shutil.which(self.project.engine)
@@ -83,7 +173,7 @@ class Builder:
         with open(cachePath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-    def _buildTarget(self, target: Target) -> str:
+    def _buildTarget(self, target: Target, snapshot: bool = False) -> str:
         engineExe = self._resolveEngine()
         if not target.mainFile:
             raise TexMakeCompileError(f"target '{target.name}' has no main file")
