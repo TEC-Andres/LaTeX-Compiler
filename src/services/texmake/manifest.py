@@ -13,7 +13,7 @@ _SNAPSHOT_DIR = "prev"
 
 
 class BuildManifest:
-    """Tracks source file hashes and intermediate file state across builds."""
+    __slots__ = ("sourceDir", "cacheDir", "manifestPath", "data")
 
     def __init__(self, sourceDir: str):
         self.sourceDir = sourceDir
@@ -27,7 +27,7 @@ class BuildManifest:
             with open(self.manifestPath, "r", encoding="utf-8") as f:
                 self.data = json.load(f)
         except (OSError, json.JSONDecodeError):
-            self.data = {"source_hashes": {}, "intermediates": {}, "page_count": 0, "timestamp": 0}
+            self.data = {"sourceHashes": {}, "intermediates": {}, "pageCount": 0, "timestamp": 0}
 
     def save(self) -> None:
         os.makedirs(self.cacheDir, exist_ok=True)
@@ -35,24 +35,24 @@ class BuildManifest:
         with open(self.manifestPath, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=2)
 
-    def hash_source(self, filePath: str) -> str:
+    def hashSource(self, filePath: str) -> str:
         return NativeHash.file(filePath)
 
-    def source_changed(self, filePath: str) -> bool:
-        current = self.hash_source(filePath)
-        previous = self.data.get("source_hashes", {}).get(filePath)
+    def sourceChanged(self, filePath: str) -> bool:
+        current = self.hashSource(filePath)
+        previous = self.data.get("sourceHashes", {}).get(filePath)
         return current != previous
 
-    def any_source_changed(self, filePaths: list[str]) -> bool:
-        return any(self.source_changed(p) for p in filePaths)
+    def anySourceChanged(self, filePaths: list[str]) -> bool:
+        return any(self.sourceChanged(p) for p in filePaths)
 
-    def update_source_hashes(self, filePaths: list[str]) -> None:
-        if "source_hashes" not in self.data:
-            self.data["source_hashes"] = {}
+    def updateSourceHashes(self, filePaths: list[str]) -> None:
+        if "sourceHashes" not in self.data:
+            self.data["sourceHashes"] = {}
         for path in filePaths:
-            self.data["source_hashes"][path] = self.hash_source(path)
+            self.data["sourceHashes"][path] = self.hashSource(path)
 
-    def snapshot_intermediates(self, stem: str) -> str:
+    def snapshotIntermediates(self, stem: str) -> str:
         snapshotDir = os.path.join(self.cacheDir, _SNAPSHOT_DIR, stem)
         os.makedirs(snapshotDir, exist_ok=True)
         for ext in _INTERMEDIATE_EXTS:
@@ -62,7 +62,7 @@ class BuildManifest:
                 shutil.copy2(src, dst)
         return snapshotDir
 
-    def read_snapshot(self, stem: str, ext: str) -> str | None:
+    def readSnapshot(self, stem: str, ext: str) -> str | None:
         path = os.path.join(self.cacheDir, _SNAPSHOT_DIR, stem, f"{stem}{ext}")
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -70,7 +70,7 @@ class BuildManifest:
         except OSError:
             return None
 
-    def read_current(self, stem: str, ext: str) -> str | None:
+    def readCurrent(self, stem: str, ext: str) -> str | None:
         path = os.path.join(self.cacheDir, f"{stem}{ext}")
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -78,24 +78,24 @@ class BuildManifest:
         except OSError:
             return None
 
-    def snapshot_exists(self, stem: str) -> bool:
+    def snapshotExists(self, stem: str) -> bool:
         snapshotDir = os.path.join(self.cacheDir, _SNAPSHOT_DIR, stem)
         return os.path.isdir(snapshotDir) and any(
             f.startswith(stem) for f in os.listdir(snapshotDir)
         )
 
-    def get_page_count(self) -> int:
-        return self.data.get("page_count", 0)
+    def getPageCount(self) -> int:
+        return self.data.get("pageCount", 0)
 
-    def set_page_count(self, count: int) -> None:
-        self.data["page_count"] = count
+    def setPageCount(self, count: int) -> None:
+        self.data["pageCount"] = count
 
     def clear(self) -> None:
         if os.path.isdir(self.cacheDir):
             shutil.rmtree(self.cacheDir)
-        self.data = {"source_hashes": {}, "intermediates": {}, "page_count": 0, "timestamp": 0}
+        self.data = {"sourceHashes": {}, "intermediates": {}, "pageCount": 0, "timestamp": 0}
 
-    def remove_snapshot(self, stem: str) -> None:
+    def removeSnapshot(self, stem: str) -> None:
         snapshotDir = os.path.join(self.cacheDir, _SNAPSHOT_DIR, stem)
         if os.path.isdir(snapshotDir):
             shutil.rmtree(snapshotDir)

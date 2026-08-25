@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .auxparser import AuxPageMap, parse_aux, parse_nav
+from .auxparser import AuxPageMap, parseAux, parseNav
 from .builder import BuildResult, Builder
 from .diffengine import DiffEngine, PageDiff
 from .errors import TexMakeCompileError, TexMakeError, TexMakeSyntaxError
@@ -18,6 +18,6 @@ __all__ = [
     "TexMakeError",
     "TexMakeProject",
     "TexMakeSyntaxError",
-    "parse_aux",
-    "parse_nav",
+    "parseAux",
+    "parseNav",
 ]

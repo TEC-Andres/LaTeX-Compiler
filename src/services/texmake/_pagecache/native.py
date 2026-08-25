@@ -27,7 +27,7 @@ class _DiffResult(ctypes.Structure):
     ]
 
 
-def _find_library() -> ctypes.CDLL | None:
+def _findLibrary() -> ctypes.CDLL | None:
     if sys.platform == "win32":
         names = ["pagecache.dll", "libpagecache.dll"]
     elif sys.platform == "darwin":
@@ -35,13 +35,13 @@ def _find_library() -> ctypes.CDLL | None:
     else:
         names = ["libpagecache.so"]
 
-    search_paths = [
+    searchPaths = [
         os.path.dirname(os.path.abspath(__file__)),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."),
     ]
 
     for name in names:
-        for base in search_paths:
+        for base in searchPaths:
             candidate = os.path.join(base, name)
             if os.path.isfile(candidate):
                 try:
@@ -49,21 +49,21 @@ def _find_library() -> ctypes.CDLL | None:
                 except OSError:
                     continue
 
-    system_path = ctypes.util.find_library("pagecache")
-    if system_path:
+    systemPath = ctypes.util.find_library("pagecache")
+    if systemPath:
         try:
-            return ctypes.CDLL(system_path)
+            return ctypes.CDLL(systemPath)
         except OSError:
             pass
 
     return None
 
 
-def _init_native() -> None:
+def _initNative() -> None:
     global _NATIVE_AVAILABLE, _lib
     if _lib is not None:
         return
-    lib = _find_library()
+    lib = _findLibrary()
     if lib is None:
         _lib = None
         _NATIVE_AVAILABLE = False
@@ -113,10 +113,10 @@ def _init_native() -> None:
     _NATIVE_AVAILABLE = True
 
 
-_init_native()
+_initNative()
 
 
-def native_available() -> bool:
+def nativeAvailable() -> bool:
     return _NATIVE_AVAILABLE
 
 
@@ -147,25 +147,25 @@ class NativeDiff:
     def __init__(self, context: int = 3):
         self.context = context
 
-    def diff(self, old_lines: list[str], new_lines: list[str]) -> list[tuple[int, int, int, int]]:
+    def diff(self, oldLines: list[str], newLines: list[str]) -> list[tuple[int, int, int, int]]:
         if _NATIVE_AVAILABLE and _lib:
             try:
-                return self._native_diff(old_lines, new_lines)
+                return self._nativeDiff(oldLines, newLines)
             except (OSError, ctypes.ArgumentError, ValueError):
                 pass
-        return self._python_diff(old_lines, new_lines)
+        return self._pythonDiff(oldLines, newLines)
 
-    def _native_diff(self, old_lines: list[str], new_lines: list[str]) -> list[tuple[int, int, int, int]]:
-        old_arr = (ctypes.c_char_p * len(old_lines))()
-        new_arr = (ctypes.c_char_p * len(new_lines))()
-        for i, line in enumerate(old_lines):
-            old_arr[i] = line.encode("utf-8")
-        for i, line in enumerate(new_lines):
-            new_arr[i] = line.encode("utf-8")
+    def _nativeDiff(self, oldLines: list[str], newLines: list[str]) -> list[tuple[int, int, int, int]]:
+        oldArr = (ctypes.c_char_p * len(oldLines))()
+        newArr = (ctypes.c_char_p * len(newLines))()
+        for i, line in enumerate(oldLines):
+            oldArr[i] = line.encode("utf-8")
+        for i, line in enumerate(newLines):
+            newArr[i] = line.encode("utf-8")
 
         result = _lib.pagecache_diff_lines(
-            old_arr, len(old_lines),
-            new_arr, len(new_lines),
+            oldArr, len(oldLines),
+            newArr, len(newLines),
             self.context,
         )
 
@@ -179,9 +179,9 @@ class NativeDiff:
         return hunks
 
     @staticmethod
-    def _python_diff(old_lines: list[str], new_lines: list[str]) -> list[tuple[int, int, int, int]]:
+    def _pythonDiff(oldLines: list[str], newLines: list[str]) -> list[tuple[int, int, int, int]]:
         import difflib
-        sm = difflib.SequenceMatcher(None, old_lines, new_lines)
+        sm = difflib.SequenceMatcher(None, oldLines, newLines)
         hunks = []
         for tag, i1, i2, j1, j2 in sm.get_opcodes():
             if tag == "equal":

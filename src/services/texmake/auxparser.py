@@ -36,15 +36,15 @@ class LabelInfo:
 
 
 class SlideEntry:
-    __slots__ = ("section", "subsection", "slide", "page", "total_pages", "label", "hoffset")
+    __slots__ = ("section", "subsection", "slide", "page", "totalPages", "label", "hoffset")
 
     def __init__(self, section: int, subsection: int, slide: int,
-                 page: int, total_pages: int, label: str, hoffset: int):
+                 page: int, totalPages: int, label: str, hoffset: int):
         self.section = section
         self.subsection = subsection
         self.slide = slide
         self.page = page
-        self.total_pages = total_pages
+        self.totalPages = totalPages
         self.label = label
         self.hoffset = hoffset
 
@@ -53,13 +53,13 @@ class SlideEntry:
 
 
 class SectionEntry:
-    __slots__ = ("number", "title", "page", "title_copy", "beamer")
+    __slots__ = ("number", "title", "page", "titleCopy", "beamer")
 
-    def __init__(self, number: int, title: str, page: int, title_copy: str, beamer: int):
+    def __init__(self, number: int, title: str, page: int, titleCopy: str, beamer: int):
         self.number = number
         self.title = title
         self.page = page
-        self.title_copy = title_copy
+        self.titleCopy = titleCopy
         self.beamer = beamer
 
     def __repr__(self) -> str:
@@ -67,25 +67,24 @@ class SectionEntry:
 
 
 class AuxPageMap:
-    """Parsed page-level metadata extracted from .aux/.nav files."""
+    __slots__ = ("labels", "slides", "sections", "framePages", "totalPages", "pageCount")
 
     def __init__(self) -> None:
         self.labels: dict[str, LabelInfo] = {}
         self.slides: list[SlideEntry] = []
         self.sections: list[SectionEntry] = []
-        self.frame_pages: list[tuple[int, int]] = []
-        self.total_pages: int = 0
-        self.page_count: int = 0
+        self.framePages: list[tuple[int, int]] = []
+        self.totalPages: int = 0
+        self.pageCount: int = 0
 
     def __repr__(self) -> str:
         return (
             f"AuxPageMap(labels={len(self.labels)}, slides={len(self.slides)}, "
-            f"sections={len(self.sections)}, pages={self.page_count})"
+            f"sections={len(self.sections)}, pages={self.pageCount})"
         )
 
 
-def parse_aux(content: str) -> AuxPageMap:
-    """Parse a .aux file and extract label-to-page mappings."""
+def parseAux(content: str) -> AuxPageMap:
     result = AuxPageMap()
     for m in _NEWLABEL_RE.finditer(content):
         name = m.group(1)
@@ -95,23 +94,22 @@ def parse_aux(content: str) -> AuxPageMap:
         result.labels[name] = LabelInfo(name, value, page, anchor)
     m = _ABSPAGE_RE.search(content)
     if m:
-        result.page_count = int(m.group(1))
-        result.total_pages = result.page_count
+        result.pageCount = int(m.group(1))
+        result.totalPages = result.pageCount
     return result
 
 
-def parse_nav(content: str) -> AuxPageMap:
-    """Parse a .nav file (beamer) and extract slide/frame/section mappings."""
+def parseNav(content: str) -> AuxPageMap:
     result = AuxPageMap()
     for m in _FRAMEPAGES_RE.finditer(content):
-        result.frame_pages.append((int(m.group(1)), int(m.group(2))))
+        result.framePages.append((int(m.group(1)), int(m.group(2))))
     for m in _SLIDEENTRY_RE.finditer(content):
         result.slides.append(SlideEntry(
             section=int(m.group(1)),
             subsection=int(m.group(2)),
             slide=int(m.group(3)),
             page=int(m.group(4)),
-            total_pages=int(m.group(5)),
+            totalPages=int(m.group(5)),
             label=m.group(6),
             hoffset=int(m.group(7)),
         ))
@@ -120,54 +118,50 @@ def parse_nav(content: str) -> AuxPageMap:
             number=int(m.group(1)),
             title=m.group(2),
             page=int(m.group(3)),
-            title_copy=m.group(4),
+            titleCopy=m.group(4),
             beamer=int(m.group(5)),
         ))
     m = _DOCUMENTPAGES_RE.search(content)
     if m:
-        result.page_count = int(m.group(1))
-    elif result.frame_pages:
-        last = result.frame_pages[-1]
-        result.page_count = last[1]
+        result.pageCount = int(m.group(1))
+    elif result.framePages:
+        last = result.framePages[-1]
+        result.pageCount = last[1]
     return result
 
 
-def parse_out(content: str) -> dict[str, int]:
-    """Parse a .out file and extract bookmark page mappings."""
+def parseOut(content: str) -> dict[str, int]:
     pages: dict[str, int] = {}
     for m in re.finditer(r"\\contentsline\s*\{[^}]*\}\{\\numberline\s*\{([^}]*)\}([^}]*)\}\{(\d+)\}", content):
         pages[m.group(2).strip()] = int(m.group(3))
     return pages
 
 
-def parse_toc(content: str) -> dict[str, int]:
-    """Parse a .toc file and extract section page mappings."""
+def parseToc(content: str) -> dict[str, int]:
     pages: dict[str, int] = {}
     for m in re.finditer(r"\\contentsline\s*\{[^}]*\}\{\\numberline\s*\{([^}]*)\}([^}]*)\}\{(\d+)\}", content):
         pages[m.group(2).strip()] = int(m.group(3))
     return pages
 
 
-def detect_total_pages(aux_content: str, nav_content: str | None = None) -> int:
-    """Extract total page count from available intermediate files."""
-    if nav_content:
-        m = _DOCUMENTPAGES_RE.search(nav_content)
+def detectTotalPages(auxContent: str, navContent: str | None = None) -> int:
+    if navContent:
+        m = _DOCUMENTPAGES_RE.search(navContent)
         if m:
             return int(m.group(1))
-    m = _ABSPAGE_RE.search(aux_content)
+    m = _ABSPAGE_RE.search(auxContent)
     if m:
         return int(m.group(1))
     return 0
 
 
-def extract_page_label_map(aux_content: str, nav_content: str | None = None) -> dict[str, int]:
-    """Extract a combined mapping of label/section names to page numbers."""
+def extractPageLabelMap(auxContent: str, navContent: str | None = None) -> dict[str, int]:
     result: dict[str, int] = {}
-    aux = parse_aux(aux_content)
+    aux = parseAux(auxContent)
     for name, info in aux.labels.items():
         result[name] = info.page
-    if nav_content:
-        nav = parse_nav(nav_content)
+    if navContent:
+        nav = parseNav(navContent)
         for section in nav.sections:
             result[section.title] = section.page
     return result

@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 
 from ._pagecache import NativeDiff
-from .auxparser import AuxPageMap, parse_aux, parse_nav, extract_page_label_map
+from .auxparser import AuxPageMap, parseAux, parseNav, extractPageLabelMap
 
 _NEWPAGE_COMMANDS = re.compile(
     r"\\(?:newpage|cleardoublepage|clearpage|pagebreak|section\*?\{|chapter\*?\{)",
@@ -12,221 +12,213 @@ _FRAME_COMMANDS = re.compile(r"\\begin\{frame\}", re.MULTILINE)
 
 
 class PageDiff:
-    """Result of comparing two builds' page-level state."""
-
     __slots__ = (
-        "dirty_pages", "added_pages", "removed_pages",
-        "propagated", "total_pages_old", "total_pages_new",
-        "label_changes", "section_changes",
+        "dirtyPages", "addedPages", "removedPages",
+        "propagated", "totalPagesOld", "totalPagesNew",
+        "labelChanges", "sectionChanges",
     )
 
     def __init__(self) -> None:
-        self.dirty_pages: set[int] = set()
-        self.added_pages: set[int] = set()
-        self.removed_pages: set[int] = set()
+        self.dirtyPages: set[int] = set()
+        self.addedPages: set[int] = set()
+        self.removedPages: set[int] = set()
         self.propagated: bool = False
-        self.total_pages_old: int = 0
-        self.total_pages_new: int = 0
-        self.label_changes: dict[str, tuple[int, int]] = {}
-        self.section_changes: dict[str, tuple[int, int]] = {}
+        self.totalPagesOld: int = 0
+        self.totalPagesNew: int = 0
+        self.labelChanges: dict[str, tuple[int, int]] = {}
+        self.sectionChanges: dict[str, tuple[int, int]] = {}
 
     @property
-    def needs_full_recompile(self) -> bool:
-        return self.propagated or len(self.dirty_pages) > self.total_pages_new * 0.5
+    def needsFullRecompile(self) -> bool:
+        return self.propagated or len(self.dirtyPages) > self.totalPagesNew * 0.5
 
     @property
-    def page_range(self) -> tuple[int, int]:
-        if not self.dirty_pages:
+    def pageRange(self) -> tuple[int, int]:
+        if not self.dirtyPages:
             return (0, 0)
-        return (min(self.dirty_pages), max(self.dirty_pages))
+        return (min(self.dirtyPages), max(self.dirtyPages))
 
     def __repr__(self) -> str:
         return (
-            f"PageDiff(dirty={sorted(self.dirty_pages)}, "
-            f"added={sorted(self.added_pages)}, "
+            f"PageDiff(dirty={sorted(self.dirtyPages)}, "
+            f"added={sorted(self.addedPages)}, "
             f"propagated={self.propagated})"
         )
 
 
 class DiffEngine:
-    """Compares intermediate files between builds to detect page-level changes."""
-
     def __init__(self, context: int = 3):
-        self._native_diff = NativeDiff(context)
+        self._nativeDiff = NativeDiff(context)
 
-    def diff_intermediates(
+    def diffIntermediates(
         self,
-        old_nav: str | None,
-        new_nav: str | None,
-        old_aux: str | None,
-        new_aux: str | None,
+        oldNav: str | None,
+        newNav: str | None,
+        oldAux: str | None,
+        newAux: str | None,
     ) -> PageDiff:
         result = PageDiff()
 
-        old_map = self._extract_page_map(old_nav, old_aux)
-        new_map = self._extract_page_map(new_nav, new_aux)
+        oldMap = self._extractPageMap(oldNav, oldAux)
+        newMap = self._extractPageMap(newNav, newAux)
 
-        result.total_pages_old = self._get_total_pages(old_nav, old_aux)
-        result.total_pages_new = self._get_total_pages(new_nav, new_aux)
+        result.totalPagesOld = self._getTotalPages(oldNav, oldAux)
+        result.totalPagesNew = self._getTotalPages(newNav, newAux)
 
-        if result.total_pages_old == 0 and result.total_pages_new == 0:
+        if result.totalPagesOld == 0 and result.totalPagesNew == 0:
             return result
 
-        if result.total_pages_new < result.total_pages_old:
-            removed = set(range(result.total_pages_new + 1, result.total_pages_old + 1))
-            result.removed_pages = removed
-            result.dirty_pages = removed
+        if result.totalPagesNew < result.totalPagesOld:
+            removed = set(range(result.totalPagesNew + 1, result.totalPagesOld + 1))
+            result.removedPages = removed
+            result.dirtyPages = removed
             return result
 
-        if result.total_pages_new > result.total_pages_old:
-            added = set(range(result.total_pages_old + 1, result.total_pages_new + 1))
-            result.added_pages = added
-            result.dirty_pages = added
+        if result.totalPagesNew > result.totalPagesOld:
+            added = set(range(result.totalPagesOld + 1, result.totalPagesNew + 1))
+            result.addedPages = added
+            result.dirtyPages = added
 
-        for name, old_page in old_map.items():
-            new_page = new_map.get(name)
-            if new_page is None:
-                if old_page <= result.total_pages_new:
-                    result.dirty_pages.add(old_page)
-            elif new_page != old_page:
-                result.label_changes[name] = (old_page, new_page)
-                result.dirty_pages.add(new_page)
-                if old_page != new_page:
-                    result.dirty_pages.add(old_page)
+        for name, oldPage in oldMap.items():
+            newPage = newMap.get(name)
+            if newPage is None:
+                if oldPage <= result.totalPagesNew:
+                    result.dirtyPages.add(oldPage)
+            elif newPage != oldPage:
+                result.labelChanges[name] = (oldPage, newPage)
+                result.dirtyPages.add(newPage)
+                if oldPage != newPage:
+                    result.dirtyPages.add(oldPage)
 
-        for name, new_page in new_map.items():
-            if name not in old_map:
-                result.dirty_pages.add(new_page)
+        for name, newPage in newMap.items():
+            if name not in oldMap:
+                result.dirtyPages.add(newPage)
 
-        if old_nav and new_nav:
-            nav_diff = self._diff_nav_entries(old_nav, new_nav)
-            if nav_diff:
-                result.dirty_pages.update(nav_diff)
+        if oldNav and newNav:
+            navDiff = self._diffNavEntries(oldNav, newNav)
+            if navDiff:
+                result.dirtyPages.update(navDiff)
 
         return result
 
-    def analyze_propagation(
+    def analyzePropagation(
         self,
-        source_content: str,
-        dirty_pages: set[int],
-        page_count: int,
+        sourceContent: str,
+        dirtyPages: set[int],
+        pageCount: int,
     ) -> set[int]:
-        """If a change doesn't cross \\newpage, it's isolated. Otherwise propagate."""
-        boundaries = self._find_page_boundaries(source_content, page_count)
+        boundaries = self._findPageBoundaries(sourceContent, pageCount)
         if not boundaries:
-            return dirty_pages
+            return dirtyPages
 
         expanded: set[int] = set()
-        for page in dirty_pages:
-            boundary = self._find_boundary_for_page(boundaries, page)
+        for page in dirtyPages:
+            boundary = self._findBoundaryForPage(boundaries, page)
             if boundary is not None:
-                next_boundary = self._find_next_boundary(boundaries, boundary)
-                if next_boundary is not None:
-                    has_propagation = self._check_propagation(
-                        source_content, page, next_boundary
+                nextBoundary = self._findNextBoundary(boundaries, boundary)
+                if nextBoundary is not None:
+                    hasPropagation = self._checkPropagation(
+                        sourceContent, page, nextBoundary
                     )
-                    if has_propagation:
-                        for p in range(page, next_boundary + 1):
+                    if hasPropagation:
+                        for p in range(page, nextBoundary + 1):
                             expanded.add(p)
                         continue
             expanded.add(page)
 
         return expanded
 
-    def diff_sources(self, old_sources: dict[str, str], new_sources: dict[str, str]) -> set[str]:
-        """Compare source file contents, return set of changed file paths."""
+    def diffSources(self, oldSources: dict[str, str], newSources: dict[str, str]) -> set[str]:
         changed: set[str] = set()
-        all_files = set(old_sources) | set(new_sources)
-        for path in all_files:
-            old = old_sources.get(path)
-            new = new_sources.get(path)
+        allFiles = set(oldSources) | set(newSources)
+        for path in allFiles:
+            old = oldSources.get(path)
+            new = newSources.get(path)
             if old != new:
                 changed.add(path)
         return changed
 
-    def compute_line_diff(self, old_text: str, new_text: str) -> list[tuple[int, int, int, int]]:
-        """Compute line-level diff between two text contents using native diff."""
-        old_lines = old_text.splitlines(keepends=True)
-        new_lines = new_text.splitlines(keepends=True)
-        return self._native_diff.diff(old_lines, new_lines)
+    def computeLineDiff(self, oldText: str, newText: str) -> list[tuple[int, int, int, int]]:
+        oldLines = oldText.splitlines(keepends=True)
+        newLines = newText.splitlines(keepends=True)
+        return self._nativeDiff.diff(oldLines, newLines)
 
-    def diff_aux_files(self, old_aux: str, new_aux: str) -> list[tuple[int, int, int, int]]:
-        """Compute line-level diff between two .aux file contents."""
-        return self.compute_line_diff(old_aux, new_aux)
+    def diffAuxFiles(self, oldAux: str, newAux: str) -> list[tuple[int, int, int, int]]:
+        return self.computeLineDiff(oldAux, newAux)
 
-    def _extract_page_map(self, nav: str | None, aux: str | None) -> dict[str, int]:
+    def _extractPageMap(self, nav: str | None, aux: str | None) -> dict[str, int]:
         combined: dict[str, int] = {}
         if aux:
-            aux_map = extract_page_label_map(aux)
-            combined.update(aux_map)
+            auxMap = extractPageLabelMap(aux)
+            combined.update(auxMap)
         if nav:
-            nav_map = extract_page_label_map(aux or "", nav)
-            for key, val in nav_map.items():
+            navMap = extractPageLabelMap(aux or "", nav)
+            for key, val in navMap.items():
                 if key not in combined:
                     combined[key] = val
         return combined
 
     @staticmethod
-    def _get_total_pages(nav: str | None, aux: str | None) -> int:
-        from .auxparser import detect_total_pages
-        return detect_total_pages(aux or "", nav)
+    def _getTotalPages(nav: str | None, aux: str | None) -> int:
+        from .auxparser import detectTotalPages
+        return detectTotalPages(aux or "", nav)
 
-    def _diff_nav_entries(self, old_nav: str, new_nav: str) -> set[int]:
-        old_entries = set(re.findall(r"\\slideentry\s*\{[^}]+\}", old_nav))
-        new_entries = set(re.findall(r"\\slideentry\s*\{[^}]+\}", new_nav))
+    def _diffNavEntries(self, oldNav: str, newNav: str) -> set[int]:
+        oldEntries = set(re.findall(r"\\slideentry\s*\{[^}]+\}", oldNav))
+        newEntries = set(re.findall(r"\\slideentry\s*\{[^}]+\}", newNav))
 
         affected: set[int] = set()
-        if old_entries != new_entries:
-            old_slides = parse_nav(old_nav)
-            new_slides = parse_nav(new_nav)
-            old_slide_pages = {s.page for s in old_slides.slides}
-            new_slide_pages = {s.page for s in new_slides.slides}
-            affected = old_slide_pages.symmetric_difference(new_slide_pages)
+        if oldEntries != newEntries:
+            oldSlides = parseNav(oldNav)
+            newSlides = parseNav(newNav)
+            oldSlidePages = {s.page for s in oldSlides.slides}
+            newSlidePages = {s.page for s in newSlides.slides}
+            affected = oldSlidePages.symmetric_difference(newSlidePages)
         return affected
 
     @staticmethod
-    def _find_page_boundaries(source: str, page_count: int) -> list[int]:
+    def _findPageBoundaries(source: str, pageCount: int) -> list[int]:
         boundaries: list[int] = []
         lines = source.split("\n")
-        current_page = 1
+        currentPage = 1
         for line in lines:
             if _NEWPAGE_COMMANDS.search(line):
-                current_page += 1
-                if current_page <= page_count:
-                    boundaries.append(current_page)
+                currentPage += 1
+                if currentPage <= pageCount:
+                    boundaries.append(currentPage)
             elif _FRAME_COMMANDS.search(line):
-                current_page += 1
-                if current_page <= page_count:
-                    boundaries.append(current_page)
+                currentPage += 1
+                if currentPage <= pageCount:
+                    boundaries.append(currentPage)
         return boundaries
 
     @staticmethod
-    def _find_boundary_for_page(boundaries: list[int], page: int) -> int | None:
+    def _findBoundaryForPage(boundaries: list[int], page: int) -> int | None:
         for b in boundaries:
             if b >= page:
                 return b
         return boundaries[-1] if boundaries else None
 
     @staticmethod
-    def _find_next_boundary(boundaries: list[int], current: int) -> int | None:
+    def _findNextBoundary(boundaries: list[int], current: int) -> int | None:
         for b in boundaries:
             if b > current:
                 return b
         return None
 
     @staticmethod
-    def _check_propagation(source: str, page: int, next_boundary: int) -> bool:
+    def _checkPropagation(source: str, page: int, nextBoundary: int) -> bool:
         lines = source.split("\n")
-        current_page = 1
-        in_boundary_range = False
+        currentPage = 1
+        inBoundaryRange = False
         for line in lines:
             if _FRAME_COMMANDS.search(line) or _NEWPAGE_COMMANDS.search(line):
-                current_page += 1
-            if current_page == page:
-                in_boundary_range = True
-            elif current_page >= next_boundary:
+                currentPage += 1
+            if currentPage == page:
+                inBoundaryRange = True
+            elif currentPage >= nextBoundary:
                 break
-            if in_boundary_range:
+            if inBoundaryRange:
                 if re.search(r"\\label\{", line):
                     return True
                 if re.search(r"\\(?:addtocontents|addtocounter|setcounter)", line):
