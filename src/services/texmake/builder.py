@@ -1,4 +1,6 @@
 from __future__ import annotations
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -10,6 +12,7 @@ from .interpreter import Target, TexMakeProject
 _MAX_PASSES = 3
 _DEFAULT_OUTPUT_DIR = "__release__"
 _CACHE_DIR_NAME = "__texcache__"
+_ENGINE_CACHE_FILE = "engineCache.json"
 _VERSION_BANNER_RE = re.compile(r"Version (\d+)\.(\d+)")
 _RERUN_PATTERNS = ("Rerun to get cross-references right", "Label(s) may have changed")
 
@@ -55,6 +58,31 @@ class Builder:
                 f"is older than required {required}"
             )
 
+    def _computeEngineHash(self, engineExe: str) -> str:
+        minVersionStr = ".".join(str(p) for p in self.project.minVersion) if self.project.minVersion else ""
+        payload = f"{self.project.engine}|{engineExe}|{minVersionStr}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _readEngineCache(self, cacheDir: str) -> str | None:
+        cachePath = os.path.join(cacheDir, _ENGINE_CACHE_FILE)
+        try:
+            with open(cachePath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("engine_hash")
+        except (OSError, json.JSONDecodeError, KeyError):
+            return None
+
+    def _writeEngineCache(self, cacheDir: str, engineExe: str, engineHash: str) -> None:
+        cachePath = os.path.join(cacheDir, _ENGINE_CACHE_FILE)
+        data = {
+            "engine_hash": engineHash,
+            "engine": self.project.engine,
+            "engine_exe": engineExe,
+            "min_version": list(self.project.minVersion) if self.project.minVersion else None,
+        }
+        with open(cachePath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
     def _buildTarget(self, target: Target) -> str:
         engineExe = self._resolveEngine()
         if not target.mainFile:
@@ -70,6 +98,9 @@ class Builder:
         logPath = os.path.join(cacheDir, f"{stem}.log")
         pdfPath = os.path.join(cacheDir, f"{stem}.pdf")
         outputDirArg = f"-output-directory={cacheDir.replace(os.sep, '/')}"
+        engineHash = self._computeEngineHash(engineExe)
+        cachedHash = self._readEngineCache(cacheDir)
+        cacheValid = (cachedHash == engineHash)
         for passNum in range(_MAX_PASSES):
             proc = subprocess.run(
                 [engineExe, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error",
@@ -81,7 +112,11 @@ class Builder:
             if proc.returncode != 0:
                 raise TexMakeCompileError(self._extractError(logPath), logPath)
             if passNum == 0:
-                self._checkEngineVersion(proc.stdout)
+                if cacheValid:
+                    self._writeEngineCache(cacheDir, engineExe, engineHash)
+                else:
+                    self._checkEngineVersion(proc.stdout)
+                    self._writeEngineCache(cacheDir, engineExe, engineHash)
             if passNum + 1 >= _MAX_PASSES:
                 break
             logContent = self._readIfExists(logPath) or ""
