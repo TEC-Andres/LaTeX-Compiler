@@ -2,8 +2,8 @@
 # texmake_minimum_required(xelatex VERSION 3.14159)
 
 # compiler interpretation
-# incremental()     # compares previous for fasgter compilation
-clean()         # cleans cache
+incremental()     # compares previous for fasgter compilation
+# clean()         # cleans cache
 # full()          # does traditional compilation
 
 project(presentation)
