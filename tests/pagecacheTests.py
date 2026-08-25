@@ -8,16 +8,16 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
 
 from services.texmake.auxparser import (
-    parse_aux, parse_nav, parse_out, parse_toc,
-    detect_total_pages, extract_page_label_map,
+    parseAux, parseNav, parseOut, parseToc,
+    detectTotalPages, extractPageLabelMap,
 )
 from services.texmake.diffengine import DiffEngine, PageDiff
 from services.texmake.manifest import BuildManifest
-from services.texmake._pagecache import NativeHash, NativeDiff, native_available
+from services.texmake._pagecache import NativeHash, NativeDiff, nativeAvailable
 
 
 def testNativeAvailable():
-    result = native_available()
+    result = nativeAvailable()
     assert isinstance(result, bool)
 
 
@@ -66,12 +66,12 @@ def testParseAuxLabels():
 \newlabel{fig:diagram}{{2.1}{3}}
 \gdef \@abspage@last{5}
 """
-    result = parse_aux(content)
+    result = parseAux(content)
     assert "sec:intro" in result.labels
     assert result.labels["sec:intro"].page == 1
     assert "fig:diagram" in result.labels
     assert result.labels["fig:diagram"].page == 3
-    assert result.page_count == 5
+    assert result.pageCount == 5
 
 
 def testParseNavBeamer():
@@ -85,9 +85,9 @@ def testParseNavBeamer():
 \headcommand {\beamer@framepages {3}{3}}
 \headcommand {\beamer@documentpages {3}}
 """
-    result = parse_nav(content)
-    assert result.page_count == 3
-    assert len(result.frame_pages) == 3
+    result = parseNav(content)
+    assert result.pageCount == 3
+    assert len(result.framePages) == 3
     assert len(result.slides) == 3
     assert len(result.sections) == 1
     assert result.sections[0].title == "Introduction"
@@ -99,7 +99,7 @@ def testParseOut():
 \contentsline {section}{\numberline {1}Introduction}{1}{section.1}
 \contentsline {section}{\numberline {2}Methods}{5}{section.2}
 """
-    result = parse_out(content)
+    result = parseOut(content)
     assert "Introduction" in result
     assert result["Introduction"] == 1
     assert "Methods" in result
@@ -110,31 +110,31 @@ def testParseToc():
     content = r"""
 \contentsline {section}{\numberline {1}Related Work}{1}{section.1}
 """
-    result = parse_toc(content)
+    result = parseToc(content)
     assert "Related Work" in result
     assert result["Related Work"] == 1
 
 
 def testDetectTotalPagesFromAux():
     content = r"\gdef \@abspage@last{12}"
-    assert detect_total_pages(content) == 12
+    assert detectTotalPages(content) == 12
 
 
 def testDetectTotalPagesFromNav():
     aux = ""
     nav = r"\headcommand {\beamer@documentpages {15}}"
-    assert detect_total_pages(aux, nav) == 15
+    assert detectTotalPages(aux, nav) == 15
 
 
 def testExtractPageLabelMap():
-    aux_content = r"""
+    auxContent = r"""
 \newlabel{eq:energy}{{1}{2}}
 \newlabel{eq:mass}{{2}{4}}
 """
-    nav_content = r"""
+    navContent = r"""
 \headcommand {\sectionentry {1}{Introduction}{1}{Introduction}{0}}
 """
-    result = extract_page_label_map(aux_content, nav_content)
+    result = extractPageLabelMap(auxContent, navContent)
     assert result["eq:energy"] == 2
     assert result["eq:mass"] == 4
     assert result["Introduction"] == 1
@@ -146,41 +146,41 @@ def testDiffEngineIdentical():
 \gdef \@abspage@last{3}
 \newlabel{sec:intro}{{1}{1}}
 """
-    result = engine.diff_intermediates(content, content, content, content)
-    assert len(result.dirty_pages) == 0
+    result = engine.diffIntermediates(content, content, content, content)
+    assert len(result.dirtyPages) == 0
 
 
 def testDiffEngineNewPages():
     engine = DiffEngine()
-    old_aux = r"\gdef \@abspage@last{3}"
-    new_aux = r"\gdef \@abspage@last{5}"
-    result = engine.diff_intermediates(None, None, old_aux, new_aux)
-    assert result.total_pages_old == 3
-    assert result.total_pages_new == 5
-    assert 4 in result.added_pages
-    assert 5 in result.added_pages
+    oldAux = r"\gdef \@abspage@last{3}"
+    newAux = r"\gdef \@abspage@last{5}"
+    result = engine.diffIntermediates(None, None, oldAux, newAux)
+    assert result.totalPagesOld == 3
+    assert result.totalPagesNew == 5
+    assert 4 in result.addedPages
+    assert 5 in result.addedPages
 
 
 def testDiffEngineLabelChange():
     engine = DiffEngine()
-    old_aux = r"""
+    oldAux = r"""
 \gdef \@abspage@last{3}
 \newlabel{sec:intro}{{1}{1}}
 """
-    new_aux = r"""
+    newAux = r"""
 \gdef \@abspage@last{3}
 \newlabel{sec:intro}{{1}{1}}
 \newlabel{fig:new}{{2.1}{2}}
 """
-    result = engine.diff_intermediates(None, None, old_aux, new_aux)
-    assert 2 in result.dirty_pages
+    result = engine.diffIntermediates(None, None, oldAux, newAux)
+    assert 2 in result.dirtyPages
 
 
 def testDiffEngineSourceComparison():
     engine = DiffEngine()
     old = {"file1.tex": "content1", "file2.tex": "content2"}
     new = {"file1.tex": "content1", "file2.tex": "changed"}
-    changed = engine.diff_sources(old, new)
+    changed = engine.diffSources(old, new)
     assert "file2.tex" in changed
     assert "file1.tex" not in changed
 
@@ -189,7 +189,7 @@ def testDiffEngineSourceAddedRemoved():
     engine = DiffEngine()
     old = {"file1.tex": "content1"}
     new = {"file1.tex": "content1", "file3.tex": "content3"}
-    changed = engine.diff_sources(old, new)
+    changed = engine.diffSources(old, new)
     assert "file3.tex" in changed
 
 
@@ -197,7 +197,7 @@ def testDiffEngineLineDiff():
     engine = DiffEngine()
     old = "line1\nline2\nline3\n"
     new = "line1\nchanged\nline3\n"
-    hunks = engine.compute_line_diff(old, new)
+    hunks = engine.computeLineDiff(old, new)
     assert len(hunks) > 0
 
 
@@ -213,7 +213,7 @@ More text.
 \section{Results}
 Final text.
 """
-    result = engine.analyze_propagation(source, {2}, 3)
+    result = engine.analyzePropagation(source, {2}, 3)
     assert isinstance(result, set)
     assert len(result) > 0
 
@@ -221,11 +221,11 @@ Final text.
 def testManifestCreateSave():
     with tempfile.TemporaryDirectory() as tmpDir:
         manifest = BuildManifest(tmpDir)
-        manifest.set_page_count(5)
+        manifest.setPageCount(5)
         manifest.save()
         assert os.path.isfile(manifest.manifestPath)
         manifest2 = BuildManifest(tmpDir)
-        assert manifest2.get_page_count() == 5
+        assert manifest2.getPageCount() == 5
 
 
 def testManifestSourceHashing():
@@ -234,11 +234,11 @@ def testManifestSourceHashing():
         with open(filePath, "w") as f:
             f.write("test content")
         manifest = BuildManifest(tmpDir)
-        manifest.update_source_hashes([filePath])
-        assert not manifest.source_changed(filePath)
+        manifest.updateSourceHashes([filePath])
+        assert not manifest.sourceChanged(filePath)
         with open(filePath, "w") as f:
             f.write("modified content")
-        assert manifest.source_changed(filePath)
+        assert manifest.sourceChanged(filePath)
 
 
 def testManifestSnapshot():
@@ -250,13 +250,13 @@ def testManifestSnapshot():
         with open(os.path.join(cacheDir, "main.nav"), "w") as f:
             f.write("old nav content")
         manifest = BuildManifest(tmpDir)
-        manifest.snapshot_intermediates("main")
+        manifest.snapshotIntermediates("main")
         with open(os.path.join(cacheDir, "main.aux"), "w") as f:
             f.write("new aux content")
-        old_content = manifest.read_snapshot("main", ".aux")
-        new_content = manifest.read_current("main", ".aux")
-        assert old_content == "old aux content"
-        assert new_content == "new aux content"
+        oldContent = manifest.readSnapshot("main", ".aux")
+        newContent = manifest.readCurrent("main", ".aux")
+        assert oldContent == "old aux content"
+        assert newContent == "new aux content"
 
 
 def testManifestClear():
@@ -266,7 +266,7 @@ def testManifestClear():
         with open(os.path.join(cacheDir, "test.txt"), "w") as f:
             f.write("test")
         manifest = BuildManifest(tmpDir)
-        manifest.set_page_count(5)
+        manifest.setPageCount(5)
         manifest.save()
         manifest.clear()
         assert not os.path.isdir(cacheDir)
@@ -275,27 +275,27 @@ def testManifestClear():
 def testBuildResultSlots():
     from services.texmake.builder import BuildResult
     result = BuildResult()
-    assert result.pdf_paths == []
-    assert result.page_diff is None
-    assert result.sources_changed == []
+    assert result.pdfPaths == []
+    assert result.pageDiff is None
+    assert result.sourcesChanged == []
     assert result.skipped is False
 
 
 def testPageDiffNeedsFullRecompile():
     diff = PageDiff()
-    diff.total_pages_new = 10
-    diff.dirty_pages = {1, 2, 3}
-    assert not diff.needs_full_recompile
-    diff.dirty_pages = set(range(1, 9))
-    assert diff.needs_full_recompile
+    diff.totalPagesNew = 10
+    diff.dirtyPages = {1, 2, 3}
+    assert not diff.needsFullRecompile
+    diff.dirtyPages = set(range(1, 9))
+    assert diff.needsFullRecompile
 
 
 def testPageDiffPageRange():
     diff = PageDiff()
-    diff.dirty_pages = {3, 5, 7}
-    assert diff.page_range == (3, 7)
-    diff.dirty_pages = set()
-    assert diff.page_range == (0, 0)
+    diff.dirtyPages = {3, 5, 7}
+    assert diff.pageRange == (3, 7)
+    diff.dirtyPages = set()
+    assert diff.pageRange == (0, 0)
 
 
 if __name__ == "__main__":
