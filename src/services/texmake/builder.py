@@ -6,8 +6,11 @@ import re
 import shutil
 import subprocess
 
+from .auxparser import detectTotalPages, parseAux, parseNav
+from .diffengine import DiffEngine, PageDiff
 from .errors import TexMakeCompileError
 from .interpreter import Target, TexMakeProject
+from .manifest import BuildManifest
 
 _MAX_PASSES = 3
 _DEFAULT_OUTPUT_DIR = "__release__"
@@ -24,13 +27,24 @@ def _parseBannerVersion(output: str) -> tuple[int, ...]:
     return (int(match.group(1)), int(match.group(2)))
 
 
-class Builder:
-    """Compiles the executable targets of a resolved TexMakeProject."""
+class BuildResult:
+    __slots__ = ("pdfPaths", "pageDiff", "sourcesChanged", "skipped")
 
+    def __init__(self) -> None:
+        self.pdfPaths: list[str] = []
+        self.pageDiff: PageDiff | None = None
+        self.sourcesChanged: list[str] = []
+        self.skipped: bool = False
+
+
+class Builder:
     def __init__(self, project: TexMakeProject):
         self.project = project
 
-    def build(self, targetName: str | None = None) -> list[str]:
+    def build(self, targetName: str | None = None, incremental: bool = False) -> list[str]:
+        if incremental:
+            result = self.buildIncremental(targetName)
+            return result.pdfPaths
         targets = [target for target in self.project.targets.values() if target.kind == "executable"]
         if targetName:
             targets = [target for target in targets if target.name == targetName]
@@ -40,6 +54,75 @@ class Builder:
         for target in targets:
             pdfPaths.append(self._buildTarget(target))
         return pdfPaths
+
+    def buildIncremental(self, targetName: str | None = None) -> BuildResult:
+        result = BuildResult()
+        targets = [target for target in self.project.targets.values() if target.kind == "executable"]
+        if targetName:
+            targets = [target for target in targets if target.name == targetName]
+            if not targets:
+                raise TexMakeCompileError(f"unknown executable target '{targetName}'")
+
+        manifest = BuildManifest(self.project.sourceDir)
+
+        for target in targets:
+            if not target.mainFile:
+                raise TexMakeCompileError(f"target '{target.name}' has no main file")
+            mainPath = target.mainFile if os.path.isabs(target.mainFile) else os.path.join(
+                self.project.sourceDir, target.mainFile
+            )
+            if not os.path.isfile(mainPath):
+                raise TexMakeCompileError(f"main file '{mainPath}' not found")
+
+            sources = target.allSources(self.project)
+            stem = os.path.splitext(os.path.basename(target.mainFile))[0]
+            if not manifest.anySourceChanged(sources) and manifest.snapshotExists(stem):
+                result.skipped = True
+                outputDir = target.outputDir or os.path.join(self.project.sourceDir, _DEFAULT_OUTPUT_DIR)
+                pdfPath = os.path.join(outputDir, f"{stem}.pdf")
+                if os.path.isfile(pdfPath):
+                    result.pdfPaths.append(pdfPath)
+                continue
+
+            oldAux = manifest.readSnapshot(stem, ".aux")
+            oldNav = manifest.readSnapshot(stem, ".nav")
+
+            pdfPath = self._buildTarget(target)
+
+            newAux = manifest.readCurrent(stem, ".aux")
+            newNav = manifest.readCurrent(stem, ".nav")
+
+            if oldAux is not None and newAux is not None:
+                diffEngine = DiffEngine()
+                pageDiff = diffEngine.diffIntermediates(oldNav, newNav, oldAux, newAux)
+
+                sourceContents = {}
+                for src in sources:
+                    try:
+                        with open(src, "r", encoding="utf-8", errors="replace") as f:
+                            sourceContents[src] = f.read()
+                    except OSError:
+                        pass
+
+                if pageDiff.dirtyPages and sourceContents:
+                    mainContent = sourceContents.get(mainPath, "")
+                    if mainContent:
+                        expanded = diffEngine.analyzePropagation(
+                            mainContent, pageDiff.dirtyPages, pageDiff.totalPagesNew
+                        )
+                        pageDiff.propagated = len(expanded) > len(pageDiff.dirtyPages)
+                        pageDiff.dirtyPages = expanded
+
+                result.pageDiff = pageDiff
+                result.sourcesChanged = list(diffEngine.diffSources({}, {}))
+
+            manifest.updateSourceHashes(sources)
+            manifest.setPageCount(detectTotalPages(newAux or "", newNav))
+            manifest.save()
+            manifest.snapshotIntermediates(stem)
+            result.pdfPaths.append(pdfPath)
+
+        return result
 
     def _resolveEngine(self) -> str:
         engineExe = shutil.which(self.project.engine)

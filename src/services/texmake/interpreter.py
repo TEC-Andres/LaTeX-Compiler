@@ -59,8 +59,15 @@ class TexMakeProject:
         self.engine = "pdflatex"
         self.minVersion: tuple[int, ...] | None = None
         self.projectName: str | None = None
+        self.incremental: bool = False
+        self.clean: bool = False
+        self._definitions: set[str] = set()
 
-    def run(self) -> "TexMakeProject":
+    def run(self, definitions: dict[str, str] | None = None) -> "TexMakeProject":
+        self._definitions: set[str] = set()
+        if definitions:
+            self.variables.update(definitions)
+            self._definitions = set(definitions.keys())
         with open(self.filePath, "r", encoding="utf-8") as f:
             root = parse(f.read(), self.filePath)
         self._executeNode(root)
@@ -122,6 +129,10 @@ class TexMakeProject:
             self._cmdAddExecutable(node, args, locals)
         elif name == "set_target_properties":
             self._cmdSetTargetProperties(node, args, locals)
+        elif name == "incremental":
+            self._cmdIncremental(node)
+        elif name == "clean":
+            self._cmdClean(node)
         else:
             raise TexMakeSyntaxError(f"unknown command '{name}'", node.line, self.filePath)
 
@@ -168,7 +179,8 @@ class TexMakeProject:
             raise TexMakeSyntaxError("set() expects a variable name", node.line, self.filePath)
         varName = self.expand(args[0], locals)
         value = ";".join(self.expand(arg, locals) for arg in args[1:])
-        self.variables[varName] = value
+        if varName not in self._definitions:
+            self.variables[varName] = value
 
     def _cmdUnset(self, node: Node, args: list[str]) -> None:
         if not args:
@@ -268,6 +280,12 @@ class TexMakeProject:
             value = self.expand(props[i + 1], locals)
             if key == "RUNTIME_OUTPUT_DIRECTORY" or key.startswith("RUNTIME_OUTPUT_DIRECTORY_") or key == "OUTPUT_DIRECTORY":
                 target.outputDir = value
+
+    def _cmdIncremental(self, node: Node) -> None:
+        self.incremental = True
+
+    def _cmdClean(self, node: Node) -> None:
+        self.clean = True
 
     def _executeIf(self, node: Node, locals: dict[str, str] | None) -> None:
         branches: list[tuple[list[str] | None, list[Node]]] = []

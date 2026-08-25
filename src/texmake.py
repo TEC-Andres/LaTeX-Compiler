@@ -44,7 +44,10 @@ def _build(listsPath: str, targetName: str | None, ui: TextHandler) -> int:
     sourceDir = os.path.dirname(listsPath)
     try:
         project = TexMakeProject(sourceDir, listsPath).run()
-        Builder(project).build(targetName)
+        if project.clean:
+            from services.texmake.manifest import BuildManifest
+            BuildManifest(sourceDir).clear()
+        Builder(project).build(targetName, incremental=project.incremental)
     except TexMakeError as e:
         ui.fail("TexMake", str(e))
         return 1

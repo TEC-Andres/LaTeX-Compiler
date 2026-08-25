@@ -176,6 +176,28 @@ def testUnknownCommandFails() -> None:
         pass
 
 
+def testIncrementalCommand() -> None:
+    project = _runProject({"texmakelists.txt": "incremental()\n"})
+    assert project.incremental is True
+
+
+def testCleanCommand() -> None:
+    project = _runProject({"texmakelists.txt": "clean()\n"})
+    assert project.clean is True
+
+
+def testIncrementalAndCleanTogether() -> None:
+    project = _runProject({"texmakelists.txt": "incremental()\nclean()\n"})
+    assert project.incremental is True
+    assert project.clean is True
+
+
+def testDefaultsAreFalse() -> None:
+    project = _runProject({"texmakelists.txt": "set(X 1)\n"})
+    assert project.incremental is False
+    assert project.clean is False
+
+
 def testBuilderEndToEnd() -> None:
     if not shutil.which("pdflatex"):
         print("  (skipped: pdflatex not available)")
